@@ -20,34 +20,42 @@ podTemplate(label: 'mypod', containers: [
                 ),
                 pipelineTriggers([])
         ])
-        cleanWs()
 
-        stage('build image & git tag & docker push') {
-            env.VERSION = semanticReleasing()
-            currentBuild.displayName = env.VERSION
+        deployInfra('nexus')
+    }
+}
 
-            sh "mvn versions:set -DnewVersion=${env.VERSION}"
-            sh "git config user.email \"jenkins@khinkali.ch\""
-            sh "git config user.name \"Jenkins\""
-            sh "git tag -a ${env.VERSION} -m \"${env.VERSION}\""
-            withCredentials([usernamePassword(credentialsId: 'github', passwordVariable: 'GIT_PASSWORD', usernameVariable: 'GIT_USERNAME')]) {
-                sh "git push https://${GIT_USERNAME}:${GIT_PASSWORD}@github.com/khinkali/nexus.git --tags"
-            }
+void deployInfra(String name) {
+    cleanWs()
+    stage('checkout') {
+        git url: "https://github.com/khinkali/${name}"
+    }
 
-            container('docker') {
-                sh "docker build -t khinkali/nexus:${env.VERSION} ."
-                withCredentials([usernamePassword(credentialsId: 'dockerhub', passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')]) {
-                    sh "docker login --username ${DOCKER_USERNAME} --password ${DOCKER_PASSWORD}"
-                }
-                sh "docker push khinkali/nexus:${env.VERSION}"
-            }
+    stage('build image & git tag & docker push') {
+        env.VERSION = semanticReleasing()
+        currentBuild.displayName = env.VERSION
+
+        sh "mvn versions:set -DnewVersion=${env.VERSION}"
+        sh "git config user.email \"jenkins@khinkali.ch\""
+        sh "git config user.name \"Jenkins\""
+        sh "git tag -a ${env.VERSION} -m \"${env.VERSION}\""
+        withCredentials([usernamePassword(credentialsId: 'github', passwordVariable: 'GIT_PASSWORD', usernameVariable: 'GIT_USERNAME')]) {
+            sh "git push https://${GIT_USERNAME}:${GIT_PASSWORD}@github.com/khinkali/${name}.git --tags"
         }
 
-        stage('deploy') {
-            sh "sed -i -e 's/        image: khinkali\\/nexus:todo/        image: khinkali\\/nexus:${env.VERSION}/' kubeconfig.yml"
-            container('kubectl') {
-                sh "kubectl apply -f kubeconfig.yml"
+        container('docker') {
+            sh "docker build -t khinkali/${name}:${env.VERSION} ."
+            withCredentials([usernamePassword(credentialsId: 'dockerhub', passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')]) {
+                sh "docker login --username ${DOCKER_USERNAME} --password ${DOCKER_PASSWORD}"
             }
+            sh "docker push khinkali/${name}:${env.VERSION}"
+        }
+    }
+
+    stage('deploy') {
+        sh "sed -i -e 's/        image: khinkali\\/${name}:todo/        image: khinkali\\/${name}:${env.VERSION}/' kubeconfig.yml"
+        container('kubectl') {
+            sh "kubectl apply -f kubeconfig.yml"
         }
     }
 }
