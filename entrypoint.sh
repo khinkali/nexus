@@ -1,6 +1,5 @@
 #!/bin/sh -e
 
-
 [ -d "${NEXUS_DATA}" ] || mkdir -p "${NEXUS_DATA}"
 [ $(stat -c '%U' "${NEXUS_DATA}") != 'neuxs' ] && chown -R nexus "${NEXUS_DATA}"
 
