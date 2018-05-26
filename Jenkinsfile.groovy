@@ -35,7 +35,6 @@ void deployInfra(String name) {
         env.VERSION = semanticReleasing()
         currentBuild.displayName = env.VERSION
 
-        sh "mvn versions:set -DnewVersion=${env.VERSION}"
         sh "git config user.email \"jenkins@khinkali.ch\""
         sh "git config user.name \"Jenkins\""
         sh "git tag -a ${env.VERSION} -m \"${env.VERSION}\""
